@@ -1,0 +1,21 @@
+# OS junk
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+.env
+
+# Secrets
+.env
+
+# Data artifacts (generated)
+data/*_raw.csv
+data/*_enriched.csv
+
+# Optional: editor junk
+.vscode/
