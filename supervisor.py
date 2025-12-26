@@ -6,6 +6,9 @@ from typing import Dict, Any
 from llm_backend import GeminiBackend
 from core.state import new_state, log_event, update_state
 
+from agents.data_engineer import DataEngineerAgent
+
+
 
 class Supervisor:
     """
@@ -25,6 +28,10 @@ class Supervisor:
         state = new_state(user_prompt)
 
         log_event(state, "run.start", {"run_id": state["run_id"]})
+
+        # --- Agent 1: Data Engineer
+        data_agent = DataEngineerAgent(local_filename="space_missions.csv")
+        data_agent.run(state)
 
         # --- Build messages for the LLM
         messages = [
