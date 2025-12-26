@@ -19,6 +19,8 @@ STATE_KEYS: Tuple[str, ...] = (
     "started_at_unix",
     "finished_at_unix",
     "logs",
+    "analysis_plan_path",
+    "analysis_md_path",
 )
 
 
@@ -37,6 +39,9 @@ def new_state(user_prompt: str) -> Dict[str, Any]:
         "started_at_unix": int(time.time()),
         "finished_at_unix": None,
         "logs": [],
+        "analysis_plan_path": None,
+        "analysis_md_path": None,
+
     }
 
 

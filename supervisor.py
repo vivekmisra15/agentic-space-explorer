@@ -1,12 +1,15 @@
 # supervisor.py
 from __future__ import annotations
 
+from readline import backend
 from typing import Dict, Any
 
 from llm_backend import GeminiBackend
 from core.state import new_state, log_event, update_state
 
 from agents.data_engineer import DataEngineerAgent
+from agents.analyst import AnalystAgent
+
 
 
 
@@ -32,6 +35,10 @@ class Supervisor:
         # --- Agent 1: Data Engineer
         data_agent = DataEngineerAgent(local_filename="space_missions.csv")
         data_agent.run(state)
+
+        # Agent 2: AnalystAgent (LLM planner + runtime executor)
+        analyst = AnalystAgent(backend=self.backend)
+        analyst.run(state)
 
         # --- Build messages for the LLM
         messages = [

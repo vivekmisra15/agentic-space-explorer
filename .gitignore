@@ -19,3 +19,8 @@ data/*_enriched.csv
 
 # Optional: editor junk
 .vscode/
+
+# Generated analysis artifacts
+reports/analysis_summary.md
+reports/plots/
+reports/plans/
