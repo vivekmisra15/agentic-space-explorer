@@ -121,6 +121,17 @@ def t_group_success_rate(*, context: Dict[str, Any], input: str, group_by: List[
 
     context["tables"][save_as] = out
 
+def t_describe_schema(*, context: Dict[str, Any], save_as: str = "schema") -> None:
+    """
+    Capture dataframe schema (columns + dtypes + basic hints) for planners and reports.
+    Saves a 2-col table into context["tables"][save_as]: column, dtype
+    """
+    df = context["df"]
+    out = pd.DataFrame({
+        "column": df.columns.astype(str),
+        "dtype": [str(t) for t in df.dtypes],
+    })
+    context["tables"][save_as] = out
 
 
 def t_plot_line(*, context: Dict[str, Any], table: str, x: str, y: str, title: str, out_path: str) -> None:
@@ -158,6 +169,128 @@ def t_plot_line(*, context: Dict[str, Any], table: str, x: str, y: str, title: s
     plt.close()
 
     # Register output artifact
+    context["artifacts"]["plots"].append(out_path)
+
+def t_plot_bar(*, context: Dict[str, Any], table: str, x: str, y: str, title: str, out_path: str, top_n: Optional[int] = None) -> None:
+    """
+    Render a bar chart from a named table and save to PNG.
+    If top_n is provided, takes the first top_n rows (assumes already sorted by relevance).
+    """
+    if table not in context["tables"]:
+        raise ValueError(f"Table '{table}' not found in context['tables']")
+    df = context["tables"][table]
+
+    if x not in df.columns or y not in df.columns:
+        raise ValueError(f"plot_bar requires columns '{x}' and '{y}' in table '{table}'")
+
+    if top_n is not None:
+        df = df.head(int(top_n))
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(df[x].astype(str), df[y])
+    plt.title(title)
+    plt.xlabel(x)
+    plt.ylabel(y)
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close()
+
+    context["artifacts"]["plots"].append(out_path)
+
+
+def t_plot_histogram(*, context: Dict[str, Any], input: str, column: str, bins: int, title: str, out_path: str) -> None:
+    """
+    Render a histogram of a numeric column from df or a named table.
+    input: "df" or a table name in context["tables"]
+    """
+    df = _resolve_input(context, input)
+
+    if column not in df.columns:
+        raise ValueError(f"plot_histogram requires column '{column}' in input '{input}'")
+
+    series = pd.to_numeric(df[column], errors="coerce").dropna()
+    if series.empty:
+        raise ValueError(f"plot_histogram found no numeric values for column '{column}'")
+
+    plt.figure(figsize=(10, 5))
+    plt.hist(series, bins=int(bins))
+    plt.title(title)
+    plt.xlabel(column)
+    plt.ylabel("Frequency")
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close()
+
+    context["artifacts"]["plots"].append(out_path)
+
+
+def t_plot_stacked_area(
+    *,
+    context: Dict[str, Any],
+    table: str,
+    x: str,
+    category: str,
+    value: str,
+    title: str,
+    out_path: str,
+    top_n_categories: int = 8,
+) -> None:
+    """
+    Render a stacked area chart from a "long" table with columns:
+      - x (e.g., Year)
+      - category (e.g., Agency)
+      - value (e.g., count)
+
+    The tool will:
+      - pick top N categories by total value
+      - group the rest into "Other"
+      - pivot into wide form and plot stacked area
+    """
+    if table not in context["tables"]:
+        raise ValueError(f"Table '{table}' not found in context['tables']")
+    df = context["tables"][table]
+
+    for col in (x, category, value):
+        if col not in df.columns:
+            raise ValueError(f"plot_stacked_area requires column '{col}' in table '{table}'")
+
+    # Ensure types
+    df = df.copy()
+    df[x] = pd.to_numeric(df[x], errors="coerce")
+    df[value] = pd.to_numeric(df[value], errors="coerce")
+    df = df.dropna(subset=[x, category, value])
+
+    if df.empty:
+        raise ValueError("plot_stacked_area: no data after cleaning.")
+
+    # Choose top categories by total contribution
+    totals = df.groupby(category)[value].sum().sort_values(ascending=False)
+    top_cats = set(totals.head(int(top_n_categories)).index.tolist())
+
+    df[category] = df[category].astype(str)
+    df["__cat__"] = df[category].apply(lambda c: c if c in top_cats else "Other")
+
+    wide = (
+        df.groupby([x, "__cat__"])[value]
+          .sum()
+          .reset_index()
+          .pivot(index=x, columns="__cat__", values=value)
+          .fillna(0)
+          .sort_index()
+    )
+
+    # Plot stacked area
+    plt.figure(figsize=(12, 6))
+    plt.stackplot(wide.index.values, wide.T.values, labels=wide.columns.tolist())
+    plt.title(title)
+    plt.xlabel(x)
+    plt.ylabel(value)
+    plt.legend(loc="upper left", fontsize="small")
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close()
+
     context["artifacts"]["plots"].append(out_path)
 
 
@@ -222,6 +355,41 @@ def _resolve_input(context: Dict[str, Any], input_name: str) -> pd.DataFrame:
         return context["tables"][input_name]
     raise ValueError(f"Unknown input '{input_name}'. Use 'df' or a table name in context['tables'].")
 
+def _resolve_column(df: pd.DataFrame, requested: str) -> str:
+    """
+    Resolve a requested column name to an existing column in df.
+
+    Supports:
+    - exact match
+    - case-insensitive match
+    - common semantic aliases (e.g., "Agency" -> "Company")
+    """
+    # 1) Exact match
+    if requested in df.columns:
+        return requested
+
+    # 2) Case-insensitive match
+    lower_map = {c.lower(): c for c in df.columns}
+    if requested.lower() in lower_map:
+        return lower_map[requested.lower()]
+
+    # 3) Semantic aliases (extend as needed)
+    aliases = {
+        "agency": ["Company", "Organisation", "Organization", "Operator", "Agency", "Provider"],
+        "mission_status": ["MissionStatus", "Mission_Status"],
+        "rocket_status": ["RocketStatus", "Rocket_Status"],
+    }
+
+    key = requested.lower()
+    if key in aliases:
+        for cand in aliases[key]:
+            if cand in df.columns:
+                return cand
+            if cand.lower() in lower_map:
+                return lower_map[cand.lower()]
+
+    raise KeyError(f"Column '{requested}' not found. Available columns: {list(df.columns)}")
+
 
 # ---------------------------------------------------------------------
 # Registry: discoverable tools for planner/runtime
@@ -255,6 +423,14 @@ REGISTRY: Dict[str, ToolSpec] = {
         },
         fn=t_group_success_rate,
     ),
+        "describe_schema": ToolSpec(
+        name="describe_schema",
+        description="List available dataframe columns and dtypes; saves as a table for planning/debugging.",
+        args_schema={
+            "save_as": "optional str (default 'schema')",
+        },
+        fn=t_describe_schema,
+    ),
     "plot_line": ToolSpec(
         name="plot_line",
         description="Plot a line chart from a named table and save to PNG.",
@@ -267,6 +443,46 @@ REGISTRY: Dict[str, ToolSpec] = {
         },
         fn=t_plot_line,
     ),
+    "plot_bar": ToolSpec(
+        name="plot_bar",
+        description="Plot a bar chart from a named table and save to PNG (great for top-N categories).",
+        args_schema={
+            "table": "str (table name)",
+            "x": "str (column name for categories)",
+            "y": "str (column name for values)",
+            "title": "str",
+            "out_path": "str (e.g., 'reports/plots/top_agencies.png')",
+            "top_n": "optional int (take first N rows)",
+        },
+        fn=t_plot_bar,
+    ),
+    "plot_histogram": ToolSpec(
+        name="plot_histogram",
+        description="Plot a histogram of a numeric column from df or a named table and save to PNG.",
+        args_schema={
+            "input": "str (use 'df' or a prior table name)",
+            "column": "str (numeric column)",
+            "bins": "int",
+            "title": "str",
+            "out_path": "str (e.g., 'reports/plots/year_hist.png')",
+        },
+        fn=t_plot_histogram,
+    ),
+    "plot_stacked_area": ToolSpec(
+        name="plot_stacked_area",
+        description="Plot a stacked area chart showing composition over time (e.g., Year x Agency counts).",
+        args_schema={
+            "table": "str (table name in long format)",
+            "x": "str (time column, e.g. 'Year')",
+            "category": "str (category column, e.g. 'Agency')",
+            "value": "str (value column, e.g. 'count')",
+            "title": "str",
+            "out_path": "str (e.g., 'reports/plots/agency_share_over_time.png')",
+            "top_n_categories": "optional int (default 8)",
+        },
+        fn=t_plot_stacked_area,
+    ),
+
     "write_markdown": ToolSpec(
         name="write_markdown",
         description="Write a markdown report referencing tables and plots.",

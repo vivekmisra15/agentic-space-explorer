@@ -15,7 +15,7 @@ from tools.data_tools import load_space_missions, derive_features
 class DataEngineerAgent:
     """
     The DataEngineerAgent is responsible for preparing datasets so that other
-    agents (e.g., analysts or machine learning components) can work with them.
+    agents (e.g., analysts or visualization components) can work with them.
     
     It performs two key tasks in sequence:
       1. Loads raw space mission data (from a remote or local source)

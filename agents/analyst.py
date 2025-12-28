@@ -140,11 +140,32 @@ Hard requirements:
 - Every step must be an object with:
   - "tool": tool name
   - "args": object (may be empty)
-- Your plan should produce:
-  - at least one plot saved under "reports/plots/"
-  - a markdown report saved under "reports/analysis_summary.md"
-- Prefer using derived dataset columns like "Year" and "Success" when available.
-- Keep it simple and robust.
+
+Artifact requirements:
+- Produce at least THREE plots saved under "reports/plots/".
+- Produce ONE markdown report saved to "reports/analysis_summary.md".
+
+Visualization taste rules (follow these strictly):
+- Counts by time (e.g., launches per Year) -> prefer BAR or HISTOGRAM (NOT a line).
+- Rates over time (e.g., success_rate by Year) -> LINE is appropriate.
+- Top-N categories (e.g., top Agencies) -> BAR chart.
+- Composition over time (e.g., Agency share over Years) -> STACKED AREA chart.
+
+Content requirements (to create "wow"):
+- Include an agency-focused view (top agencies and/or agency success rates).
+- Include a composition-over-time view when possible:
+  - Build a table grouped by ["Year", "Agency"] with a "count" column,
+  - Then render plot_stacked_area using that table.
+
+Robustness rules:
+- Prefer derived columns like "Year" and "Success" when available.
+- Use simple, resilient steps. Avoid unnecessary complexity.
+- Use filenames that are stable and descriptive (no random strings).
+- MUST include an early step: {{"tool":"describe_schema","args":{{}}}}.
+- When you need "Agency", choose the closest matching existing column from the schema table (examples: Company, Organisation, Operator, Agency). Do NOT invent column names.
+- Use an agency-like column (Company/Operator/Organisation). In this dataset, Company often represents the operating organization.
+
+
 
 Return JSON with shape:
 {{
@@ -155,6 +176,8 @@ Return JSON with shape:
     ...
   ]
 }}
+
+
 
 Run id (for naming if needed): {run_id}
 """.strip()
