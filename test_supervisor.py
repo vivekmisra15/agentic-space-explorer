@@ -4,7 +4,7 @@ from supervisor import Supervisor
 if __name__ == "__main__":
     sup = Supervisor(model="gemini-2.5-flash-lite")
 
-    out = sup.run("Show me surprising trends in space missions over time.")
+    out = sup.run("Show me the most interesting insights from the 1960s.")
 
     print("\n--- Analysis artifacts ---")
     print("analysis_plan_path:", out.get("analysis_plan_path"))

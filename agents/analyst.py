@@ -156,6 +156,9 @@ Content requirements (to create "wow"):
 - Include a composition-over-time view when possible:
   - Build a table grouped by ["Year", "Agency"] with a "count" column,
   - Then render plot_stacked_area using that table.
+- MUST run eda_probe_suite early and use its output table ("eda_insights") to identify surprising changes.
+- Your markdown report must include the "eda_insights" table and explicitly call out 3–5 surprising items that relate to the user objective.
+
 
 Robustness rules:
 - Prefer derived columns like "Year" and "Success" when available.
@@ -165,6 +168,11 @@ Robustness rules:
 - When you need "Agency", choose the closest matching existing column from the schema table (examples: Company, Organisation, Operator, Agency). Do NOT invent column names.
 - Use an agency-like column (Company/Operator/Organisation). In this dataset, Company often represents the operating organization.
 
+Time scoping:
+- If the user asks about a specific decade (e.g., "1960s"), you MUST filter the dataset to that range using filter_year_range:
+  - 1960s => start_year=1960, end_year=1969
+  - 1970s => 1970–1979, etc.
+- If the user asks to compare two periods (e.g., "1990s vs 1970s"), you MUST create two filtered tables (e.g., df_1970s, df_1990s) and run eda_probe_suite on each.
 
 
 Return JSON with shape:

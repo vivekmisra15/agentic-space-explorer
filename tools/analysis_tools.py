@@ -85,8 +85,12 @@ def t_group_count(*, context: Dict[str, Any], input: str, group_by: List[str], s
         t_group_count(context=ctx, input="df", group_by=["Agency"], save_as="launches_per_agency")
     """
     df = _resolve_input(context, input)
+
+    # Resolve column names (allows semantic aliasing like Agency -> Company)
+    resolved_group_by = [_resolve_column(df, c) for c in group_by]
+
     out = (
-        df.groupby(group_by)
+        df.groupby(resolved_group_by)
         .size()
         .reset_index(name="count")
         .sort_values("count", ascending=False)
@@ -106,11 +110,15 @@ def t_group_success_rate(*, context: Dict[str, Any], input: str, group_by: List[
       - also an alias column named exactly like success_col (e.g., 'Success') for planner-friendliness
     """
     df = _resolve_input(context, input)
+
+    success_col_resolved = _resolve_column(df, success_col)
+    resolved_group_by = [_resolve_column(df, c) for c in group_by]
+
     if success_col not in df.columns:
         raise ValueError(f"success_col '{success_col}' not found in dataframe columns")
 
     out = (
-        df.groupby(group_by)[success_col]
+        df.groupby(resolved_group_by)[success_col_resolved]
           .mean()
           .reset_index(name="success_rate")
           .sort_values(group_by)
@@ -132,6 +140,116 @@ def t_describe_schema(*, context: Dict[str, Any], save_as: str = "schema") -> No
         "dtype": [str(t) for t in df.dtypes],
     })
     context["tables"][save_as] = out
+
+def t_eda_probe_suite(
+    *,
+    context: Dict[str, Any],
+    input: str = "df",
+    year_col: str = "Year",
+    success_col: str = "Success",
+    org_col: str = "Company",
+    save_as: str = "eda_insights",
+    top_k: int = 8,
+) -> None:
+    """
+    Run a bounded, deterministic EDA probe suite to surface candidate 'surprising' insights.
+
+    Outputs a table with columns:
+      - insight_type
+      - label
+      - metric
+      - value
+      - note
+
+    This is meant to generate candidates; the LLM/report can choose which to highlight.
+    """
+    df = _resolve_input(context, input)
+
+    # Resolve columns robustly (uses your existing alias resolver if present)
+    ycol = _resolve_column(df, year_col)
+    scol = _resolve_column(df, success_col)
+    ocol = _resolve_column(df, org_col)
+
+    df[ycol] = pd.to_numeric(df[ycol], errors="coerce")
+    df = df.dropna(subset=[ycol])
+    df[ycol] = df[ycol].astype(int)
+
+    insights: List[Dict[str, Any]] = []
+
+    # --- Probe 1: launches per year + YoY spikes/drops
+    launches = df.groupby(ycol).size().reset_index(name="launches").sort_values(ycol)
+    launches["yoy_delta"] = launches["launches"].diff()
+
+    # Biggest spikes
+    spikes = launches.dropna(subset=["yoy_delta"]).sort_values("yoy_delta", ascending=False).head(top_k)
+    for _, r in spikes.iterrows():
+        insights.append({
+            "insight_type": "launch_spike",
+            "label": f"{int(r[ycol])}",
+            "metric": "launches_yoy_delta",
+            "value": float(r["yoy_delta"]),
+            "note": f"Launches increased by {int(r['yoy_delta'])} vs prior year."
+        })
+
+    # Biggest drops
+    drops = launches.dropna(subset=["yoy_delta"]).sort_values("yoy_delta", ascending=True).head(top_k)
+    for _, r in drops.iterrows():
+        insights.append({
+            "insight_type": "launch_drop",
+            "label": f"{int(r[ycol])}",
+            "metric": "launches_yoy_delta",
+            "value": float(r["yoy_delta"]),
+            "note": f"Launches decreased by {abs(int(r['yoy_delta']))} vs prior year."
+        })
+
+    # --- Probe 2: success rate per year + YoY changes
+    # Ensure success column is numeric-ish boolean
+    succ = df.copy()
+    succ[scol] = succ[scol].astype(bool)
+
+    sr = succ.groupby(ycol)[scol].mean().reset_index(name="success_rate").sort_values(ycol)
+    sr["yoy_delta"] = sr["success_rate"].diff()
+
+    sr_up = sr.dropna(subset=["yoy_delta"]).sort_values("yoy_delta", ascending=False).head(top_k)
+    for _, r in sr_up.iterrows():
+        insights.append({
+            "insight_type": "success_rate_jump",
+            "label": f"{int(r[ycol])}",
+            "metric": "success_rate_yoy_delta",
+            "value": float(r["yoy_delta"]),
+            "note": f"Success rate increased by {r['yoy_delta']:.2%} vs prior year."
+        })
+
+    sr_down = sr.dropna(subset=["yoy_delta"]).sort_values("yoy_delta", ascending=True).head(top_k)
+    for _, r in sr_down.iterrows():
+        insights.append({
+            "insight_type": "success_rate_drop",
+            "label": f"{int(r[ycol])}",
+            "metric": "success_rate_yoy_delta",
+            "value": float(r["yoy_delta"]),
+            "note": f"Success rate decreased by {abs(r['yoy_delta']):.2%} vs prior year."
+        })
+
+    # --- Probe 3: top orgs overall (simple “who dominates?” lens)
+    top_orgs = df.groupby(ocol).size().reset_index(name="missions").sort_values("missions", ascending=False).head(top_k)
+    for _, r in top_orgs.iterrows():
+        insights.append({
+            "insight_type": "top_org_overall",
+            "label": str(r[ocol]),
+            "metric": "missions",
+            "value": float(r["missions"]),
+            "note": f"High overall mission volume."
+        })
+
+    out = pd.DataFrame(insights)
+
+    # Keep deterministic ordering: group by type then highest abs value
+    if not out.empty:
+        out["abs_value"] = out["value"].abs()
+        out = out.sort_values(["insight_type", "abs_value"], ascending=[True, False]).drop(columns=["abs_value"])
+
+    context["tables"][save_as] = out
+
 
 
 def t_plot_line(*, context: Dict[str, Any], table: str, x: str, y: str, title: str, out_path: str) -> None:
@@ -390,6 +508,30 @@ def _resolve_column(df: pd.DataFrame, requested: str) -> str:
 
     raise KeyError(f"Column '{requested}' not found. Available columns: {list(df.columns)}")
 
+def t_filter_year_range(
+    *,
+    context: Dict[str, Any],
+    input: str,
+    year_col: str = "Year",
+    start_year: int,
+    end_year: int,
+    save_as: str,
+) -> None:
+    """
+    Filter rows to a year range [start_year, end_year] inclusive.
+    Saves the filtered dataframe as a named table in context["tables"][save_as].
+    """
+    df = _resolve_input(context, input).copy()
+    ycol = _resolve_column(df, year_col)
+
+    df[ycol] = pd.to_numeric(df[ycol], errors="coerce")
+    df = df.dropna(subset=[ycol])
+    df[ycol] = df[ycol].astype(int)
+
+    out = df[(df[ycol] >= int(start_year)) & (df[ycol] <= int(end_year))].copy()
+    context["tables"][save_as] = out
+
+
 
 # ---------------------------------------------------------------------
 # Registry: discoverable tools for planner/runtime
@@ -423,13 +565,38 @@ REGISTRY: Dict[str, ToolSpec] = {
         },
         fn=t_group_success_rate,
     ),
-        "describe_schema": ToolSpec(
+    "describe_schema": ToolSpec(
         name="describe_schema",
         description="List available dataframe columns and dtypes; saves as a table for planning/debugging.",
         args_schema={
             "save_as": "optional str (default 'schema')",
         },
         fn=t_describe_schema,
+    ),
+    "filter_year_range": ToolSpec(
+        name="filter_year_range",
+        description="Filter rows to a year range [start_year, end_year] (inclusive) and save as a named table.",
+        args_schema={
+            "input": "str (use 'df' or a table name)",
+            "year_col": "optional str (default 'Year')",
+            "start_year": "int",
+            "end_year": "int",
+            "save_as": "str (table name to save filtered df)",
+        },
+        fn=t_filter_year_range,
+    ),
+    "eda_probe_suite": ToolSpec(
+        name="eda_probe_suite",
+        description="Run a bounded EDA probe suite to surface candidate surprising insights (spikes, drops, success-rate jumps, top orgs).",
+        args_schema={
+            "input": "optional str (default 'df'; can be a filtered table name)",
+            "year_col": "optional str (default 'Year')",
+            "success_col": "optional str (default 'Success')",
+            "org_col": "optional str (default 'Company')",
+            "save_as": "optional str (default 'eda_insights')",
+            "top_k": "optional int (default 8)",
+        },
+        fn=t_eda_probe_suite,
     ),
     "plot_line": ToolSpec(
         name="plot_line",
