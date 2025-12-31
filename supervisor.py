@@ -9,7 +9,7 @@ from core.state import new_state, log_event, update_state
 
 from agents.data_engineer import DataEngineerAgent
 from agents.analyst import AnalystAgent
-
+from agents.eval_agent import EvalAgent
 
 
 
@@ -39,6 +39,11 @@ class Supervisor:
         # Agent 2: AnalystAgent (LLM planner + runtime executor)
         analyst = AnalystAgent(backend=self.backend)
         analyst.run(state)
+
+        #Agent 3: EvaluatorAgent (LLM-based evaluation of analysis)
+        eval_agent = EvalAgent(backend=self.backend)
+        eval_agent.run(state)
+
 
         # --- Build messages for the LLM
         messages = [

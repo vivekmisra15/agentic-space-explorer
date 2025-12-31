@@ -21,6 +21,9 @@ STATE_KEYS: Tuple[str, ...] = (
     "logs",
     "analysis_plan_path",
     "analysis_md_path",
+    "eval_md_path",
+    "eval_json_path",
+    "eval_pass",
 )
 
 
@@ -41,6 +44,9 @@ def new_state(user_prompt: str) -> Dict[str, Any]:
         "logs": [],
         "analysis_plan_path": None,
         "analysis_md_path": None,
+        "eval_md_path": None,
+        "eval_json_path": None,
+        "eval_pass": None,
 
     }
 
