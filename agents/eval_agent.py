@@ -133,6 +133,45 @@ class EvalAgent:
         return ("1960" in p or "1970" in p or "1980" in p or "1990" in p or "2000" in p or "2010" in p or "2020" in p
                 or "decade" in p or "from " in p or "between " in p or "vs" in p or "compare" in p)
 
+    # ---  The extract JSON helper 
+    def _extract_json_obj(self, text: str) -> Optional[dict]:
+        """
+        Extract JSON object from raw model output.
+
+        Handles:
+        - plain JSON
+        - fenced JSON: ```json ... ```
+        - fenced content without language tag: ``` ... ```
+        """
+        if not text:
+            return None
+
+        t = text.strip()
+
+        # Strip markdown fences if present
+        if t.startswith("```"):
+            lines = t.splitlines()
+
+            # Drop opening fence line (```json or ```)
+            if lines:
+                lines = lines[1:]
+
+            # Drop closing fence line if present
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+
+            t = "\n".join(lines).strip()
+
+        # Try parse as JSON
+        try:
+            obj = json.loads(t)
+            if isinstance(obj, dict):
+                return obj
+            return None
+        except Exception:
+            return None
+
+      
     def _llm_critique(self, state: Dict[str, Any], deterministic_issues: List[str]) -> Dict[str, Any]:
         user_prompt = (state.get("user_prompt") or "").strip()
         plan_path = state.get("analysis_plan_path")
@@ -159,7 +198,7 @@ class EvalAgent:
                 "content": (
                     "You are a strict evaluator for an agentic analytics workflow.\n"
                     "Your job: judge whether the analysis artifacts and narrative plausibly answer the user's question.\n"
-                    "Return STRICT JSON only, no markdown.\n"
+                    "Return STRICT JSON only. Do NOT wrap in markdown fences. Do NOT use ```json.\n"
                     "Schema:\n"
                     "{"
                     "\"pass\": boolean, "
@@ -198,18 +237,50 @@ class EvalAgent:
                 "suggested_fixes": [],
             }
 
-        # Parse JSON safely
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            # If model returns non-JSON, degrade gracefully
-            parsed = {
+        
+        parsed = self._extract_json_obj(raw)
+
+        if parsed is None:
+            # Model returned something we couldn't parse; degrade gracefully
+            return {
                 "pass": len(deterministic_issues) == 0,
                 "summary": "LLM returned non-JSON; used deterministic checks.",
                 "issues": deterministic_issues,
                 "suggested_fixes": [],
                 "raw_llm": raw[:2000],
             }
+
+        # Normalize expected fields
+        llm_pass = parsed.get("pass")
+        if not isinstance(llm_pass, bool):
+            # If missing/invalid, default to deterministic result
+            llm_pass = (len(deterministic_issues) == 0)
+
+        llm_summary = parsed.get("summary", "")
+        llm_issues = parsed.get("issues") or []
+        llm_fixes = parsed.get("suggested_fixes") or []
+
+        if not isinstance(llm_issues, list):
+            llm_issues = [str(llm_issues)]
+        if not isinstance(llm_fixes, list):
+            llm_fixes = [str(llm_fixes)]
+
+        # Merge deterministic issues + LLM issues (dedupe, stable order)
+        merged_issues = list(dict.fromkeys([*deterministic_issues, *[str(x) for x in llm_issues]]))
+
+        # Pass/fail policy:
+        # - If deterministic checks found issues => FAIL no matter what.
+        # - Else if LLM parsed successfully => respect LLM pass/fail.
+        # - (We already handled “no parse” above.)
+        final_pass = (len(deterministic_issues) == 0) and bool(llm_pass)
+
+        return {
+            "pass": final_pass,
+            "summary": llm_summary if llm_summary else ("LLM critique parsed." if merged_issues else "No issues found."),
+            "issues": merged_issues,
+            "suggested_fixes": [str(x) for x in llm_fixes],
+        }
+
 
         # Merge deterministic issues into model issues (dedupe)
         model_issues = parsed.get("issues") or []
