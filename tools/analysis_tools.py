@@ -412,7 +412,15 @@ def t_plot_stacked_area(
     context["artifacts"]["plots"].append(out_path)
 
 
-def t_write_markdown(*, context: Dict[str, Any], title: str, tables: List[str], plot_paths: Optional[List[str]], out_path: str) -> None:
+def t_write_markdown(
+    *,
+    context: Dict[str, Any],
+    title: str,
+    tables: List[str],
+    plot_paths: List[str],
+    out_path: str,
+    highlights: Optional[List[str]] = None,
+) -> None:
     """
     Generate a Markdown report summarizing selected tables and plots.
 
@@ -433,6 +441,16 @@ def t_write_markdown(*, context: Dict[str, Any], title: str, tables: List[str], 
     """
     lines: List[str] = []
     lines.append(f"# {title}\n")
+
+    lines.append("")
+
+    if highlights:
+        lines.append("## Key highlights")
+        for h in highlights:
+            lines.append(f"- {h}")
+        lines.append("")
+
+
     lines.append("## Tables\n")
 
     # Include first few rows of each requested table
@@ -658,6 +676,7 @@ REGISTRY: Dict[str, ToolSpec] = {
             "tables": "list[str] (table names)",
             "plot_paths": "optional list[str] (if omitted, uses all generated plots)",
             "out_path": "str (e.g., 'reports/analysis_summary.md')",
+            "highlights": "optional list[str] (bullet highlights for the report)"
         },
         fn=t_write_markdown,
     ),

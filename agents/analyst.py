@@ -168,11 +168,38 @@ Robustness rules:
 - When you need "Agency", choose the closest matching existing column from the schema table (examples: Company, Organisation, Operator, Agency). Do NOT invent column names.
 - Use an agency-like column (Company/Operator/Organisation). In this dataset, Company often represents the operating organization.
 
+Report quality requirements:
+- Provide 3–6 "highlights" bullets that directly answer the user objective.
+- Avoid vague statements; include numbers/years/companies when possible.
+- Highlights must be grounded: each bullet must cite at least one concrete value from computed tables (year, count, delta, success_rate).
+- Do not mention any company/entity unless it appears in a table included in the markdown.
+- Prefer referencing eda_insights_* rows directly.
+
+Prefer referencing eda_insights_* rows directly.
+
+
 Time scoping:
 - If the user asks about a specific decade (e.g., "1960s"), you MUST filter the dataset to that range using filter_year_range:
   - 1960s => start_year=1960, end_year=1969
   - 1970s => 1970–1979, etc.
 - If the user asks to compare two periods (e.g., "1990s vs 1970s"), you MUST create two filtered tables (e.g., df_1970s, df_1990s) and run eda_probe_suite on each.
+
+Example write_markdown step:
+
+{{
+  "tool": "write_markdown",
+  "args": {{
+    "title": "Interesting Insights (1975–1990)",
+    "highlights": [
+      "Launch volume increased sharply after 1983, peaking in 1988.",
+      "Overall mission success rate improved from ~65% to over 80%.",
+      "A small number of companies accounted for the majority of launches."
+    ],
+    "tables": ["eda_insights", "launches_per_year"],
+    "plot_paths": ["reports/plots/launches_per_year.png"],
+    "out_path": "reports/analysis_summary.md"
+  }}
+}}
 
 
 Return JSON with shape:
