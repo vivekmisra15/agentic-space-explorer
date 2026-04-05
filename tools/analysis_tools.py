@@ -21,6 +21,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.io as pio
 
 
 # ---------------------------------------------------------------------
@@ -286,6 +288,11 @@ def t_plot_line(*, context: Dict[str, Any], table: str, x: str, y: str, title: s
     plt.savefig(out_path)
     plt.close()
 
+    # Plotly sidecar for interactive rendering
+    pfig = px.line(df, x=x, y=y, title=title, template="plotly_dark")
+    pfig.update_layout(paper_bgcolor="#0e1117", plot_bgcolor="#0e1117")
+    pio.write_json(pfig, out_path.replace(".png", ".plotly.json"))
+
     # Register output artifact
     context["artifacts"]["plots"].append(out_path)
 
@@ -314,6 +321,11 @@ def t_plot_bar(*, context: Dict[str, Any], table: str, x: str, y: str, title: st
     plt.savefig(out_path)
     plt.close()
 
+    # Plotly sidecar for interactive rendering
+    pfig = px.bar(df, x=df[x].astype(str), y=y, title=title, template="plotly_dark")
+    pfig.update_layout(paper_bgcolor="#0e1117", plot_bgcolor="#0e1117")
+    pio.write_json(pfig, out_path.replace(".png", ".plotly.json"))
+
     context["artifacts"]["plots"].append(out_path)
 
 
@@ -339,6 +351,11 @@ def t_plot_histogram(*, context: Dict[str, Any], input: str, column: str, bins: 
     plt.tight_layout()
     plt.savefig(out_path)
     plt.close()
+
+    # Plotly sidecar for interactive rendering
+    pfig = px.histogram(series.to_frame(name=column), x=column, nbins=int(bins), title=title, template="plotly_dark")
+    pfig.update_layout(paper_bgcolor="#0e1117", plot_bgcolor="#0e1117")
+    pio.write_json(pfig, out_path.replace(".png", ".plotly.json"))
 
     context["artifacts"]["plots"].append(out_path)
 
@@ -408,6 +425,13 @@ def t_plot_stacked_area(
     plt.tight_layout()
     plt.savefig(out_path)
     plt.close()
+
+    # Plotly sidecar for interactive rendering
+    wide_reset = wide.reset_index()
+    cat_cols = [c for c in wide_reset.columns if c != x]
+    pfig = px.area(wide_reset, x=x, y=cat_cols, title=title, template="plotly_dark")
+    pfig.update_layout(paper_bgcolor="#0e1117", plot_bgcolor="#0e1117")
+    pio.write_json(pfig, out_path.replace(".png", ".plotly.json"))
 
     context["artifacts"]["plots"].append(out_path)
 
