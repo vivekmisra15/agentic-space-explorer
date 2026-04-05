@@ -5,7 +5,7 @@ import os
 if __name__ == "__main__":
     sup = Supervisor(model="gemini-2.5-flash-lite")
 
-    out = sup.run("Show me the most interesting insights from 1975 to 1990.")
+    out = sup.run("What were the most interesting decades for space launches?")
 
     print("\n--- Analysis artifacts ---")
     print("analysis_plan_path:", out.get("analysis_plan_path"))
