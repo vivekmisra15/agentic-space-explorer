@@ -24,3 +24,4 @@ data/*_enriched.csv
 reports/analysis_summary.md
 reports/plots/
 reports/plans/
+reports/evals/

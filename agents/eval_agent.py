@@ -22,6 +22,7 @@ class EvalAgent:
     def __init__(self, backend: Any, reports_dir: str = "reports"):
         self.backend = backend
         self.reports_dir = reports_dir
+        self.evals_dir = os.path.join(reports_dir, "evals")
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
         start = time.time()
@@ -29,7 +30,7 @@ class EvalAgent:
 
         log_event(state, "agent.start", {"agent": "EvalAgent"})
 
-        os.makedirs(self.reports_dir, exist_ok=True)
+        os.makedirs(self.evals_dir, exist_ok=True)
 
         # ---- 1) Deterministic checks
         issues = self._deterministic_checks(state)
@@ -38,8 +39,8 @@ class EvalAgent:
         eval_json = self._llm_critique(state, issues)
 
         # ---- 3) Write eval artifacts
-        eval_md_path = os.path.join(self.reports_dir, "eval.md")
-        eval_json_path = os.path.join(self.reports_dir, f"eval_{run_id}.json")
+        eval_md_path = os.path.join(self.evals_dir, "eval.md")
+        eval_json_path = os.path.join(self.evals_dir, f"eval_{run_id}.json")
 
         with open(eval_json_path, "w", encoding="utf-8") as f:
             json.dump(eval_json, f, indent=2, ensure_ascii=False)
