@@ -173,9 +173,7 @@ Report quality requirements:
 - Avoid vague statements; include numbers/years/companies when possible.
 - Highlights must be grounded: each bullet must cite at least one concrete value from computed tables (year, count, delta, success_rate).
 - Do not mention any company/entity unless it appears in a table included in the markdown.
-- Prefer referencing eda_insights_* rows directly.
-
-Prefer referencing eda_insights_* rows directly.
+- Write highlights in plain business language. Never reference table names, column names, variable names, or internal data structures. Write as if the reader has never seen the underlying data.
 
 
 Time scoping:
