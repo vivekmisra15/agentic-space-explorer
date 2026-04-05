@@ -17,22 +17,32 @@ _CSS = """
     font-size: 0.95rem;
 }
 
-/* Pass / fail badges */
-.badge-pass {
+/* Eval banner — full-width colored bar */
+.eval-banner-pass {
     background: #22c55e;
     color: #fff;
-    padding: 3px 12px;
-    border-radius: 4px;
+    padding: 0.8rem 1.2rem;
+    border-radius: 6px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 1.1rem;
+    text-align: center;
+    margin-bottom: 1rem;
 }
-.badge-fail {
+.eval-banner-fail {
     background: #ef4444;
     color: #fff;
-    padding: 3px 12px;
-    border-radius: 4px;
+    padding: 0.8rem 1.2rem;
+    border-radius: 6px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 1.1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+/* Tab bar — larger text, active accent */
+button[data-baseweb="tab"] {
+    font-size: 1.05rem !important;
+    font-weight: 500 !important;
 }
 
 /* Rounded borders on plot images */
