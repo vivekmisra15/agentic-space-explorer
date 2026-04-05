@@ -8,7 +8,7 @@ from ui.styles import inject_css
 from ui.components import render_header, render_query_input, render_agent_timing
 from ui.renderers import (
     render_highlights,
-    render_charts,
+    render_chart_gallery,
     render_analysis_report,
     render_eval_card,
     render_debug,
@@ -31,6 +31,8 @@ if "error_msg" not in st.session_state:
     st.session_state["error_msg"] = None
 if "auto_run" not in st.session_state:
     st.session_state["auto_run"] = False
+if "selected_chart_idx" not in st.session_state:
+    st.session_state["selected_chart_idx"] = 0
 
 # --- Header + Input ---
 render_header()
@@ -40,6 +42,7 @@ query, should_run = render_query_input()
 if should_run and query:
     st.session_state["app_state"] = "running"
     st.session_state["error_msg"] = None
+    st.session_state["selected_chart_idx"] = 0
 
     with st.status("Running analysis pipeline...", expanded=True) as status:
         try:
@@ -61,24 +64,36 @@ if should_run and query:
 if st.session_state["app_state"] == "error":
     st.error(f"Pipeline failed: {st.session_state['error_msg']}")
 
-# --- Results ---
+# --- Results (three-tab layout) ---
 if st.session_state["app_state"] == "completed" and st.session_state["result"]:
     result = st.session_state["result"]
 
+    # Agent timing — always visible above tabs
     render_agent_timing(result.get("logs", []))
-
     st.divider()
-    render_highlights(result.get("analysis_md_path"))
 
-    st.divider()
-    render_charts(result.get("plot_paths", []))
+    # Three tabs
+    tab_insights, tab_report, tab_eval = st.tabs(
+        ["Insights", "Report", "Evaluation & Debug"]
+    )
 
-    st.divider()
-    tab_report, tab_eval = st.tabs(["Analysis Report", "Evaluation"])
+    with tab_insights:
+        # Supervisor overview message
+        sup_msg = result.get("supervisor_message", "")
+        if sup_msg:
+            st.markdown(
+                f'<p style="color:#888; font-size:0.9rem;">{sup_msg}</p>',
+                unsafe_allow_html=True,
+            )
+
+        render_highlights(result.get("analysis_md_path"))
+        st.divider()
+        render_chart_gallery(result.get("plot_paths", []))
+
     with tab_report:
         render_analysis_report(result.get("analysis_md_path"))
+
     with tab_eval:
         render_eval_card(result)
-
-    st.divider()
-    render_debug(result)
+        st.divider()
+        render_debug(result)
