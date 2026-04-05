@@ -31,8 +31,17 @@ If an output must be correct (a number, a chart, a file), a deterministic Python
 ```
 agentic-space-explorer/
 │
-├── supervisor.py              # Entry point. Orchestrates all agents.
+├── app.py                     # Streamlit UI entry point.
+├── supervisor.py              # Backend orchestrator. Calls all agents.
 ├── llm_backend.py             # All Gemini API calls go through here.
+│
+├── ui/
+│   ├── components.py          # Header, query input, sample chips, agent timing.
+│   ├── renderers.py           # Chart gallery, highlights, report, eval card, debug.
+│   └── styles.py              # Custom CSS injected at startup.
+│
+├── .streamlit/
+│   └── config.toml            # Dark theme configuration.
 │
 ├── core/
 │   └── state.py               # Shared working memory between agents.
@@ -54,7 +63,7 @@ agentic-space-explorer/
 │
 ├── reports/                   # All generated output (plots, markdown, eval).
 │   ├── plans/                 # Saved analysis plans (JSON).
-│   ├── plots/                 # Generated visualizations (PNG).
+│   ├── plots/                 # Generated visualizations (PNG + .plotly.json sidecars).
 │   └── eval_*.json            # Evaluation metadata per run.
 │
 └── docs/                      # Human-facing design documents (not loaded at runtime).
@@ -66,14 +75,18 @@ agentic-space-explorer/
 
 | File | Role |
 |---|---|
+| `app.py` | Streamlit UI. Calls the backend, manages session state, renders 3-tab results. |
 | `supervisor.py` | The conductor. Calls agents in order, holds the run lifecycle. |
 | `llm_backend.py` | Thin wrapper around Google Gemini. Agents never touch the SDK directly. |
 | `core/state.py` | A shared Python dict with a strict schema, passed between every agent. |
 | `agents/data_engineer.py` | Loads the CSV and adds computed columns (`Year`, `Decade`, `Success`). |
 | `agents/analyst.py` | Asks Gemini to generate a JSON plan, then executes it step by step. |
 | `agents/eval_agent.py` | Checks output quality with hard-coded rules, then an LLM critique. |
-| `tools/analysis_tools.py` | The toolbox: deterministic functions for aggregating data and making charts. |
+| `tools/analysis_tools.py` | The toolbox: deterministic functions for aggregating data and making charts. Each plot tool saves both a PNG and a Plotly JSON sidecar. |
 | `tools/plan_runtime.py` | Takes the LLM's JSON plan and executes it, one step at a time. |
+| `ui/components.py` | Reusable Streamlit components: header, query input, sample chips, timing. |
+| `ui/renderers.py` | Result rendering: chart gallery, highlights, report with metadata, eval card. |
+| `ui/styles.py` | Custom CSS for dark theme polish, highlight cards, eval banners, tab bar. |
 
 ---
 
@@ -231,10 +244,10 @@ Back in `supervisor.py`, the Supervisor sends the final state summary to Gemini 
 | `group_success_rate` | Group and compute success rate |
 | `filter_year_range` | Filter by start/end year |
 | `eda_probe_suite` | Surface surprising insights (big changes, outliers) |
-| `plot_line` | Line chart |
-| `plot_bar` | Bar chart (supports top-N) |
-| `plot_histogram` | Histogram of a numeric column |
-| `plot_stacked_area` | Stacked area chart for composition over time |
+| `plot_line` | Line chart — saves PNG + `.plotly.json` sidecar |
+| `plot_bar` | Bar chart (supports top-N) — saves PNG + `.plotly.json` sidecar |
+| `plot_histogram` | Histogram of a numeric column — saves PNG + `.plotly.json` sidecar |
+| `plot_stacked_area` | Stacked area chart for composition over time — saves PNG + `.plotly.json` sidecar |
 | `write_markdown` | Generate a markdown report with tables and plots |
 
 The registry is the system's **capability boundary** — the LLM can only reference tools that exist here. Adding a new capability means adding one tool; nothing else changes.
@@ -384,8 +397,14 @@ Completed:
 - Self-evaluation with deterministic + LLM critique
 
 Planned:
-- Minimal UI (log viewer and report output)
 - ADK-based reimplementation (follow-up repository)
+
+Recently completed (post-MVP):
+- Streamlit front end (`app.py`, `ui/`) with 3-tab layout (Insights, Report, Evaluation & Debug)
+- Interactive Plotly charts with hover tooltips via `.plotly.json` sidecars alongside PNGs
+- Thumbnail gallery with click-to-select chart view
+- Business-friendly highlights (LLM prompt updated to avoid internal table name references; sanitisation safety net in renderer)
+- Table metadata labels and column guides in the Report tab
 
 The architecture is deliberately designed to map cleanly onto Google ADK:
 

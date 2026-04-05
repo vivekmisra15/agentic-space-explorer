@@ -9,14 +9,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 python3.13 -m venv venv
 venv/bin/pip install -r requirements.txt
 
-# Run the integration test (full pipeline)
+# Run the Streamlit app (primary entry point)
+venv/bin/streamlit run app.py
+
+# Run the integration test (full pipeline, no UI)
 venv/bin/python test_supervisor.py
 
 # Run data tools smoke tests
 venv/bin/python tools/test_data_tools.py
-
-# Run a quick end-to-end flow manually
-venv/bin/python -c "from supervisor import Supervisor; print(Supervisor().run('Your question here'))"
 ```
 
 ## Architecture
@@ -51,9 +51,27 @@ State is the only communication channel between agents. The **`STATE_KEYS`** dic
 - Visualization: `plot_line`, `plot_bar`, `plot_histogram`, `plot_stacked_area`
 - Reporting: `write_markdown`
 
+Each of the four visualization tools generates both a **matplotlib PNG** (for thumbnails) and a **Plotly JSON sidecar** (`.plotly.json`, same base filename) for interactive rendering in the UI.
+
 The `REGISTRY` list exported from this file is the **capability boundary** — the LLM can only reference tools that exist here. Adding a new capability means adding one `ToolSpec` to `REGISTRY`, nothing else.
 
 **`tools/plan_runtime.py`** validates the JSON plan (tool names exist, steps are well-formed) before executing it. If validation fails, `analyst.py` falls back to a safe default plan.
+
+### Streamlit Front End (`app.py`, `ui/`)
+
+**`app.py`** is the primary user-facing entry point. It calls `Supervisor.run()` inside `st.status` and renders results in a 3-tab layout after completion:
+
+- **Tab 1 — Insights:** supervisor overview message, key highlights (2-column grid), interactive chart gallery
+- **Tab 2 — Report:** full analysis markdown with table metadata labels
+- **Tab 3 — Evaluation & Debug:** eval pass/fail banner, issues, developer artifact view
+
+**`ui/components.py`** — header, query input with sample prompt chips, agent timing metrics.
+
+**`ui/renderers.py`** — all result rendering functions. `render_chart_gallery` displays PNG thumbnails with click-to-select; the selected chart renders as an interactive Plotly chart (falling back to PNG if no `.plotly.json` sidecar exists). `parse_highlights` strips backtick-wrapped internal names before display. `TABLE_METADATA` and `COLUMN_METADATA` dicts provide business-friendly descriptions injected into the report view.
+
+**`ui/styles.py`** — CSS injection: dark theme overrides, highlight card styling, eval banner classes, tab bar font sizing.
+
+**`.streamlit/config.toml`** — dark base theme with blue (`#4da6ff`) primary colour.
 
 ### Logging
 
