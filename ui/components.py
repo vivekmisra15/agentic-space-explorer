@@ -9,10 +9,38 @@ SAMPLE_PROMPTS = [
 
 
 def render_header():
-    st.title("Agentic Space Explorer")
-    st.caption(
-        "Ask a question about space missions and watch a multi-agent AI workflow investigate it."
-    )
+    st.markdown("""
+    <div style="
+        padding: 2.5rem 0 1.5rem 0;
+        box-shadow: 0 8px 40px 0 rgba(77,166,255,0.08);
+        margin-bottom: 0.5rem;
+    ">
+        <h1 style="
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.6rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4da6ff, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0 0 0.6rem 0;
+            letter-spacing: 0.04em;
+        ">Agentic Space Explorer</h1>
+        <div style="
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #4da6ff, transparent);
+            margin-bottom: 0.75rem;
+        "></div>
+        <p style="
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 300;
+            color: #aabbcc;
+            margin: 0;
+            letter-spacing: 0.02em;
+        ">Ask a question about space missions and watch a multi-agent AI workflow investigate it.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def _set_chip(prompt: str):
